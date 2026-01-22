@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Monument QR Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 40px; background: #f4f4f4; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 400px; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box;}
+        select { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        button { width: 100%; padding: 12px; background: #ffcc00; border: none; font-weight: bold; cursor: pointer; border-radius: 5px; }
+        #qrcode { margin-top: 20px; display: flex; justify-content: center; }
+        .label { margin-top: 10px; font-weight: bold; text-align: center; color: #555; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>QR Code Generator</h2>
+        <p style="font-size: 0.8rem; color: #666;">Paste your GitHub URL below:</p>
+        
+        <input type="text" id="baseUrl" placeholder="https://yourname.github.io/project-name/" value="">
+        
+        <select id="monumentId">
+            <option value="">Main Menu (No Monument)</option>
+            <option value="hampi-chariot">Hampi Stone Chariot</option>
+            <option value="konark-wheel">Konark Sun Temple</option>
+            <option value="nalanda">Nalanda University</option>
+            <option value="ajanta">Ajanta Caves</option>
+        </select>
+
+        <button onclick="generateQR()">Create QR Code</button>
+
+        <div id="qrcode"></div>
+        <div id="url-label" class="label"></div>
+    </div>
+
+    <script>
+        function generateQR() {
+            // Clear previous QR
+            document.getElementById("qrcode").innerHTML = "";
+            
+            const baseUrl = document.getElementById("baseUrl").value;
+            const mId = document.getElementById("monumentId").value;
+            
+            if(!baseUrl) { alert("Please enter your GitHub URL first!"); return; }
+
+            // Construct the Deep Link
+            // It will look like: https://link.com/?m=hampi-chariot
+            const finalUrl = mId ? `${baseUrl}?m=${mId}` : baseUrl;
+            
+            document.getElementById("url-label").innerText = "Link: " + finalUrl;
+
+            new QRCode(document.getElementById("qrcode"), {
+                text: finalUrl,
+                width: 256,
+                height: 256,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+        }
+    </script>
+</body>
+</html>

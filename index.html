@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Indian Monuments AR | Historical Reconstruction</title>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: white; overflow: hidden; }
+        
+        /* Landing Page */
+        #landing-page {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d1b00 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+            z-index: 999; padding: 20px; overflow-y: auto;
+        }
+        .header { text-align: center; margin: 30px 0; }
+        h1 { font-size: 2.2rem; margin: 10px 0; color: #ffcc00; text-transform: uppercase; letter-spacing: 2px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        .subtitle { font-size: 1rem; opacity: 0.8; margin-bottom: 30px; }
+
+        /* Monument Grid */
+        .monument-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px; width: 100%; max-width: 1200px; padding: 20px 0;
+        }
+        .monument-card {
+            background: linear-gradient(135deg, rgba(255,204,0,0.1) 0%, rgba(0,0,0,0.4) 100%);
+            border: 2px solid rgba(255,204,0,0.3); border-radius: 15px;
+            padding: 20px; cursor: pointer; transition: 0.3s;
+            backdrop-filter: blur(10px); position: relative; overflow: hidden;
+        }
+        .monument-card:hover { transform: translateY(-5px); border-color: #ffcc00; box-shadow: 0 10px 30px rgba(255,204,0,0.3); }
+        .monument-card h3 { color: #ffcc00; margin: 0 0 8px 0; font-size: 1.3rem; }
+        .monument-card p { margin: 5px 0; font-size: 0.9rem; opacity: 0.9; line-height: 1.4; }
+        .monument-card .location { font-size: 0.85rem; opacity: 0.7; margin-top: 10px; }
+        .monument-card .era { display: inline-block; background: rgba(255,204,0,0.2); padding: 4px 12px; border-radius: 12px; font-size: 0.8rem; margin-top: 8px; }
+
+        /* Loading Screen */
+        #loading-screen {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 998;
+            flex-direction: column; align-items: center; justify-content: center;
+        }
+        .spinner { border: 4px solid rgba(255,204,0,0.3); border-top: 4px solid #ffcc00;
+            border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* AR UI */
+        #ar-ui {
+            display: none; position: fixed; bottom: 30px; left: 0; width: 100%;
+            z-index: 100; justify-content: center; gap: 20px; flex-wrap: wrap; padding: 0 20px;
+        }
+        .control-btn {
+            width: 70px; height: 70px; border-radius: 50%; border: 3px solid white;
+            background: rgba(0,0,0,0.7); color: white; font-size: 24px;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+            transition: 0.3s; backdrop-filter: blur(10px);
+        }
+        .control-btn:active { transform: scale(0.95); }
+        .narration-active { border-color: #ffcc00; color: #ffcc00; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 204, 0, 0.7); } 70% { box-shadow: 0 0 0 15px rgba(255, 204, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 204, 0, 0); } }
+        .back-btn { background: rgba(255,0,0,0.7); }
+
+        /* Info Bar */
+        #info-bar {
+            display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); padding: 15px 30px; border-radius: 25px;
+            z-index: 100; text-align: center; backdrop-filter: blur(10px);
+            border: 2px solid #ffcc00; max-width: 80%;
+        }
+        #monument-name { font-size: 1.2rem; font-weight: bold; color: #ffcc00; margin-bottom: 5px; }
+
+        /* Screenshot Preview */
+        #screenshot-preview {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 1000;
+            flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+        }
+        #preview-image { max-width: 90%; max-height: 70%; border-radius: 10px; box-shadow: 0 0 30px rgba(255,204,0,0.5); }
+        .preview-buttons { display: flex; gap: 15px; margin-top: 20px; }
+        .preview-btn {
+            padding: 12px 30px; border: none; border-radius: 25px; font-size: 1rem;
+            cursor: pointer; transition: 0.3s; font-weight: bold;
+        }
+        .download-btn { background: #ffcc00; color: #000; }
+        .close-btn { background: transparent; color: white; border: 2px solid white; }
+
+        /* QR Scanner Mode */
+        #qr-mode {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 900;
+            flex-direction: column; align-items: center; justify-content: center; padding: 20px;
+        }
+        #qr-info {
+            background: rgba(255,204,0,0.1); border: 2px solid #ffcc00;
+            padding: 20px; border-radius: 15px; text-align: center; max-width: 80%;
+        }
+        .qr-btn { padding: 12px 30px; background: #ffcc00; color: #000; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+    <!-- Landing Page -->
+    <div id="landing-page">
+        <div class="header">
+            <h1>🏛️ Indian Heritage AR</h1>
+            <p class="subtitle">Restore lost monuments through Augmented Reality</p>
+        </div>
+
+        <div class="monument-grid" id="monument-grid">
+            <!-- Monument cards will be generated here -->
+        </div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <p style="margin-top: 20px; font-size: 1.1rem;" id="loading-text">Loading monument...</p>
+    </div>
+
+    <!-- Info Bar -->
+    <div id="info-bar">
+        <div id="monument-name"></div>
+        <div id="info-text">Point camera at marker</div>
+    </div>
+
+    <!-- AR Controls -->
+    <div id="ar-ui">
+        <div class="control-btn back-btn" onclick="exitAR()" title="Back to Menu">🏠</div>
+        <div id="voice-btn" class="control-btn" onclick="toggleNarration()" title="Voice Guide">🔊</div>
+        <div class="control-btn" onclick="takeSnapshot()" style="background: white; color: black;" title="Hall of Fame">📸</div>
+        <div class="control-btn" onclick="toggleQRMode()" title="Scan at Home">📱</div>
+    </div>
+
+    <!-- QR Scanner Mode Info -->
+    <div id="qr-mode">
+        <div id="qr-info">
+            <h2 style="color: #ffcc00; margin-top: 0;">📱 Scan at Home Mode</h2>
+            <p style="line-height: 1.6;">Print the marker pattern for <span id="qr-monument-name" style="color: #ffcc00;"></span> and place it on any surface at home.</p>
+            <p style="margin-top: 15px; font-size: 0.9rem;">Point your camera at the printed marker to see the monument appear in your space!</p>
+            <button class="qr-btn" onclick="toggleQRMode()">Got It!</button>
+        </div>
+    </div>
+
+    <!-- Screenshot Preview -->
+    <div id="screenshot-preview">
+        <h2 style="color: #ffcc00;">🏆 Hall of Fame</h2>
+        <img id="preview-image" src="" alt="Screenshot">
+        <div class="preview-buttons">
+            <button class="preview-btn download-btn" onclick="downloadScreenshot()">Download</button>
+            <button class="preview-btn close-btn" onclick="closePreview()">Close</button>
+        </div>
+    </div>
+
+    <!-- AR Scene (Hidden initially) -->
+    <a-scene 
+        id="ar-scene"
+        embedded 
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+        renderer="logarithmicDepthBuffer: true; precision: medium;"
+        vr-mode-ui="enabled: false"
+        loading-screen="enabled: false"
+        style="display: none;">
+        
+        <a-assets id="ar-assets">
+            <!-- Models will be loaded dynamically -->
+        </a-assets>
+
+        <!-- Marker will be added dynamically -->
+        <a-entity camera></a-entity>
+    </a-scene>
+
+    <script>
+        // Monument Database
+        const monuments = [
+            {
+                id: 'hampi-chariot',
+                name: 'Hampi Stone Chariot',
+                location: 'Hampi, Karnataka',
+                era: '16th Century - Vijayanagara Empire',
+                description: 'Iconic stone chariot from Vitthala Temple complex',
+                model: 'modelglb/hampi.glb',
+                marker: 'markers/hampi.patt',
+                scale: '1.5 1.5 1.5',
+                narration: 'You are witnessing a digital restoration of the Vitthala Temple Stone Chariot from Hampi, Karnataka. Originally built during the Vijayanagara Empire in the 16th century, this iconic chariot once featured a massive brick tower on top, which was lost to history. The chariot\'s wheels were designed to rotate, and it symbolized the temple deity\'s celestial vehicle. This AR model restores the missing structures using historical blueprints.'
+            },
+            {
+                id: 'elora-caves',
+                name: 'Elora Caves',
+                location: 'Aurangabad, Maharashtra',
+                era: '7th Century - Rashtrakuta Dynasty',
+                description: 'Ancient rock-cut cave temples',
+                model: 'modelglb/elora.glb',
+                marker: 'markers/elora_caves.patt',
+                scale: '2 2 2',
+                narration: 'The Konark Sun Temple was designed as a colossal chariot with 24 elaborately carved stone wheels. Built in the 13th century, many of its structures have been damaged over time. This restoration shows the wheel in its original grandeur with complete carvings and structural integrity.'
+            },
+           
+            // Add more monuments here...
+        ];
+
+        let currentMonument = null;
+        let sceneReady = false;
+        let markerVisible = false;
+        let currentMarker = null;
+
+        // Generate monument cards
+        function generateMonumentCards() {
+            const grid = document.getElementById('monument-grid');
+            grid.innerHTML = monuments.map(monument => `
+                <div class="monument-card" onclick="selectMonument('${monument.id}')">
+                    <h3>${monument.name}</h3>
+                    <p>${monument.description}</p>
+                    <div class="location">📍 ${monument.location}</div>
+                    <div class="era">${monument.era}</div>
+                </div>
+            `).join('');
+        }
+
+        // Initialize
+        generateMonumentCards();
+
+        // Select monument and load AR
+        function selectMonument(monumentId) {
+            currentMonument = monuments.find(m => m.id === monumentId);
+            if (!currentMonument) return;
+
+            document.getElementById('landing-page').style.display = 'none';
+            document.getElementById('loading-screen').style.display = 'flex';
+            document.getElementById('loading-text').textContent = `Loading ${currentMonument.name}...`;
+
+            // Load AR scene
+            loadARScene();
+        }
+
+        function loadARScene() {
+            const scene = document.querySelector('#ar-scene');
+            const assets = document.querySelector('#ar-assets');
+            
+            // Clear previous assets and markers
+            assets.innerHTML = '';
+            const oldMarker = document.querySelector('a-marker');
+            if (oldMarker) oldMarker.remove();
+
+            // Add new model asset
+            const modelAsset = document.createElement('a-asset-item');
+            modelAsset.setAttribute('id', 'current-model');
+            modelAsset.setAttribute('src', currentMonument.model);
+            assets.appendChild(modelAsset);
+
+            // Wait for model to load
+            modelAsset.addEventListener('loaded', () => {
+                // Create marker
+                const marker = document.createElement('a-marker');
+                marker.setAttribute('type', 'pattern');
+                marker.setAttribute('url', currentMonument.marker);
+                marker.setAttribute('smooth', 'true');
+                marker.setAttribute('smoothCount', '5');
+                marker.setAttribute('smoothTolerance', '0.01');
+
+                // Create entity with model
+                const entity = document.createElement('a-entity');
+                entity.setAttribute('gltf-model', '#current-model');
+                entity.setAttribute('scale', currentMonument.scale);
+                entity.setAttribute('position', '0 0 0');
+                entity.setAttribute('rotation', '0 0 0');
+                entity.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 30000; easing: linear');
+
+                marker.appendChild(entity);
+                scene.appendChild(marker);
+                currentMarker = marker;
+
+                // Set up marker events
+                setupMarkerEvents();
+
+                // Show AR UI
+                setTimeout(() => {
+                    document.getElementById('loading-screen').style.display = 'none';
+                    document.getElementById('ar-scene').style.display = 'block';
+                    document.getElementById('ar-ui').style.display = 'flex';
+                    document.getElementById('info-bar').style.display = 'block';
+                    document.getElementById('monument-name').textContent = currentMonument.name;
+                    sceneReady = true;
+                }, 1500);
+            });
+
+            // Unlock audio
+            const silent = new SpeechSynthesisUtterance("");
+            window.speechSynthesis.speak(silent);
+        }
+
+        function setupMarkerEvents() {
+            if (!currentMarker) return;
+
+            currentMarker.addEventListener('markerFound', () => {
+                markerVisible = true;
+                document.getElementById('info-text').textContent = '✨ Monument Restored!';
+            });
+            
+            currentMarker.addEventListener('markerLost', () => {
+                markerVisible = false;
+                document.getElementById('info-text').textContent = 'Point camera at marker';
+            });
+        }
+
+        // Exit AR and return to menu
+        function exitAR() {
+            document.getElementById('ar-scene').style.display = 'none';
+            document.getElementById('ar-ui').style.display = 'none';
+            document.getElementById('info-bar').style.display = 'none';
+            document.getElementById('landing-page').style.display = 'flex';
+            
+            // Stop narration if playing
+            if (isNarrating) {
+                window.speechSynthesis.cancel();
+                isNarrating = false;
+                document.getElementById('voice-btn').classList.remove('narration-active');
+            }
+            
+            sceneReady = false;
+            currentMonument = null;
+        }
+
+        // Voice Narration
+        let isNarrating = false;
+        function toggleNarration() {
+            if (!currentMonument) return;
+            
+            const btn = document.getElementById('voice-btn');
+            
+            if (!isNarrating) {
+                const speech = new SpeechSynthesisUtterance(currentMonument.narration);
+                speech.rate = 0.9;
+                speech.pitch = 1;
+                
+                speech.onstart = () => {
+                    btn.classList.add('narration-active');
+                    isNarrating = true;
+                    document.getElementById('info-text').textContent = '🔊 Playing audio guide...';
+                };
+                
+                speech.onend = () => { 
+                    btn.classList.remove('narration-active');
+                    isNarrating = false;
+                    document.getElementById('info-text').textContent = markerVisible ? '✨ Monument Restored!' : 'Point camera at marker';
+                };
+                
+                window.speechSynthesis.speak(speech);
+            } else {
+                window.speechSynthesis.cancel();
+                btn.classList.remove('narration-active');
+                isNarrating = false;
+                document.getElementById('info-text').textContent = markerVisible ? '✨ Monument Restored!' : 'Point camera at marker';
+            }
+        }
+
+        // Hall of Fame Screenshot
+        let capturedImage = null;
+        
+        function takeSnapshot() {
+            if (!currentMonument) return;
+            
+            document.getElementById('info-text').textContent = '📸 Capturing...';
+            
+            const canvas = document.querySelector('a-scene').components.screenshot.getCanvas('perspective');
+            
+            if (canvas) {
+                capturedImage = canvas.toDataURL('image/png');
+                document.getElementById('preview-image').src = capturedImage;
+                document.getElementById('screenshot-preview').style.display = 'flex';
+            } else {
+                html2canvas(document.body).then(canvas => {
+                    capturedImage = canvas.toDataURL('image/png');
+                    document.getElementById('preview-image').src = capturedImage;
+                    document.getElementById('screenshot-preview').style.display = 'flex';
+                });
+            }
+        }
+
+        function downloadScreenshot() {
+            if (!currentMonument) return;
+            
+            const link = document.createElement('a');
+            link.download = `${currentMonument.id}-${Date.now()}.png`;
+            link.href = capturedImage;
+            link.click();
+            
+            document.getElementById('info-text').textContent = '✅ Saved to Hall of Fame!';
+            closePreview();
+        }
+
+        function closePreview() {
+            document.getElementById('screenshot-preview').style.display = 'none';
+            document.getElementById('info-text').textContent = markerVisible ? '✨ Monument Restored!' : 'Point camera at marker';
+        }
+
+        // QR/Home Mode Toggle
+        function toggleQRMode() {
+            if (!currentMonument) return;
+            
+            const qrMode = document.getElementById('qr-mode');
+            document.getElementById('qr-monument-name').textContent = currentMonument.name;
+            qrMode.style.display = qrMode.style.display === 'flex' ? 'none' : 'flex';
+        }
+    </script>
+</body>
+</html>
